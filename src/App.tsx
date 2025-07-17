@@ -1,143 +1,156 @@
 import { useState } from 'react'
 import type { ChangeEvent } from 'react'
+import './App.css'
+import TextPrompt from './components/TextPrompt'
+import ImagePrompt from './components/ImagePrompt'
+import { ModelViewer } from './components/ModelViewer'
 
 function App() {
-  const [textPrompt, setTextPrompt] = useState('')
-  const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [generatedModel, setGeneratedModel] = useState<string | null>(null)
+  const [modelBlob, setModelBlob] = useState<Blob | null>(null)
+  const [activeInput, setActiveInput] = useState<'text' | 'image'>('text')
 
-  const handleTextSubmit = async () => {
-    if (!textPrompt.trim()) return
-    
-    setIsGenerating(true)
-    console.log('Generating from text:', textPrompt)
-    
-    // Simulate API call
-    setTimeout(() => {
-      setIsGenerating(false)
-      setGeneratedModel('model.glb') // Placeholder
-    }, 3000)
-  }
-
-  const handleImageSubmit = async () => {
-    if (!selectedImage) return
-    
-    setIsGenerating(true)
-    console.log('Generating from image:', selectedImage.name)
-    
-    // Simulate API call
-    setTimeout(() => {
-      setIsGenerating(false)
-      setGeneratedModel('model.glb') // Placeholder
-    }, 3000)
-  }
-
-  const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setSelectedImage(file)
+  const handleResult = (data: { glb: string }) => {
+    setIsGenerating(false);
+    try {
+      // If the glb is already a blob URL (from ImagePrompt)
+      if (data.glb.startsWith('blob:')) {
+        fetch(data.glb)
+          .then(response => response.blob())
+          .then(blob => {
+            setModelBlob(blob);
+            setGeneratedModel('model.glb');
+          });
+      } else {
+        // Handle base64 data (from TextPrompt)
+        const base64String = data.glb.split(';base64,').pop() || data.glb;
+        const binaryString = window.atob(base64String);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: 'model/gltf-binary' });
+        setModelBlob(blob);
+        setGeneratedModel('model.glb');
+      }
+    } catch (error) {
+      console.error('Error processing GLB data:', error);
     }
-  }
+    console.log('API Response received');
+  };
 
   const handleDownload = () => {
-    if (generatedModel) {
-      // Simulate download
-      const link = document.createElement('a')
-      link.href = '#'
-      link.download = 'generated-character.glb'
-      link.click()
+    if (modelBlob && generatedModel) {
+      const url = URL.createObjectURL(modelBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'generated-model.glb';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     }
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-6xl mx-auto space-y-8">
-        <h1 className="text-3xl font-bold text-center"></h1>
-        { /* Input */}
-        <div className="flex gap-8">
-          <div className="flex-1 bg-white p-6 rounded-lg shadow min-h-80 flex flex-col">
-            <h2 className="text-xl font-semibold mb-4">Text Prompt</h2>
-            <div className="flex flex-col gap-4 flex-1">
-              <textarea
-                value={textPrompt}
-                onChange={(e) => setTextPrompt(e.target.value)}
-                placeholder="Describe your character..."
-                className="w-full p-3 border border-gray-300 rounded-lg resize-none flex-1 disabled:opacity-50"
-                disabled={isGenerating}
-              />
-              <button
-                onClick={handleTextSubmit}
-                disabled={!textPrompt.trim() || isGenerating}
-                className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isGenerating ? 'Generating...' : 'Generate'}
-              </button>
-            </div>
-          </div>
-
-          <div className="flex-1 bg-white p-6 rounded-lg shadow min-h-80 flex flex-col">
-            <h2 className="text-xl font-semibold mb-4">Image Upload</h2>
-            <div className="flex flex-col gap-4 flex-1">
-              <div className="relative flex-1 min-h-48">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
-                  disabled={isGenerating}
-                  id="image-upload"
-                />
-                <label
-                  htmlFor="image-upload"
-                  className="block w-full h-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-center cursor-pointer hover:border-gray-400 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                >
-                  <div className="flex flex-col items-center gap-2">
-                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    <span className="text-sm font-medium text-gray-600">
-                      {selectedImage ? selectedImage.name : 'Click to upload image'}
-                    </span>
-                    <span className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</span>
-                  </div>
-                </label>
-              </div>
-              <button
-                onClick={handleImageSubmit}
-                disabled={!selectedImage || isGenerating}
-                className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isGenerating ? 'Generating...' : 'Generate'}
-              </button>
-            </div>
-          </div>
+    <div className="min-h-screen p-8">
+      <div className="max-w-[1600px] mx-auto">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+            3D Model Generator
+          </h1>
+          <p className="mt-3 text-gray-600 text-lg">
+            Generate 3D assets from text or image
+          </p>
         </div>
-
-        { /* Output */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-xl font-semibold mb-4">3D Model Output</h2>
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-            {generatedModel ? (
-              <div className="space-y-4">
-                <div className="w-full h-64 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <p className="text-gray-500">3D Model Viewer (Placeholder)</p>
-                </div>
+        
+        <div className="flex gap-12">
+          {/* Left side - Inputs Container */}
+          <div className="w-1/2">
+            <div className="border border-gray-200 rounded-2xl p-8 bg-white">
+              <h2 className="text-2xl font-semibold mb-8 text-gray-800 text-left">Input</h2>
+              
+              {/* Input Method Selector */}
+              <div className="flex gap-4 mb-6">
                 <button
-                  onClick={handleDownload}
-                  className="px-6 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600"
+                  onClick={() => setActiveInput('text')}
+                  className={`px-4 py-2 rounded-lg font-medium ${
+                    activeInput === 'text'
+                      ? 'bg-indigo-50 text-indigo-600'
+                      : 'text-gray-600 hover:bg-gray-50'
+                  }`}
                 >
-                  Download Model
+                  Text Prompt
+                </button>
+                <button
+                  onClick={() => setActiveInput('image')}
+                  className={`px-4 py-2 rounded-lg font-medium ${
+                    activeInput === 'image'
+                      ? 'bg-indigo-50 text-indigo-600'
+                      : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  Image Upload
                 </button>
               </div>
-            ) : (
-              <p className="text-gray-500">Generated 3D model will appear here</p>
-            )}
+
+              {/* Input Methods */}
+              <div className="input-gradient rounded-xl p-6">
+                {activeInput === 'text' && (
+                  <div>
+                    <TextPrompt onResult={handleResult} />
+                  </div>
+                )}
+
+                {activeInput === 'image' && (
+                  <div>
+                    <ImagePrompt onResult={handleResult} />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right side - Output Container */}
+          <div className="w-1/2">
+            <div className="border border-gray-200 rounded-2xl p-8 bg-white sticky top-8">
+              <h2 className="text-2xl font-semibold mb-8 text-gray-800 text-left">Output</h2>
+              <div className={`rounded-xl p-6 ${!generatedModel ? 'upload-area' : ''}`}>
+                {generatedModel ? (
+                  <div className="space-y-6">
+                    {modelBlob && (
+                      <div className="bg-gray-50 rounded-lg overflow-hidden">
+                        <ModelViewer modelUrl={URL.createObjectURL(modelBlob)} />
+                      </div>
+                    )}
+                    <div className="flex justify-end">
+                      <button
+                        onClick={handleDownload}
+                        disabled={!modelBlob}
+                        className="btn-primary px-6 py-3 text-white rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                      >
+                        Download Model
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-12 text-center">
+                    <div className="p-4 rounded-full bg-gray-50 w-16 h-16 mx-auto mb-4">
+                      <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <p className="text-gray-500">No model generated yet</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
