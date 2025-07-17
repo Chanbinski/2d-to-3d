@@ -1,18 +1,17 @@
 import { useState } from 'react'
-import type { ChangeEvent } from 'react'
 import './App.css'
 import TextPrompt from './components/TextPrompt'
 import ImagePrompt from './components/ImagePrompt'
 import { ModelViewer } from './components/ModelViewer'
 
 function App() {
-  const [isGenerating, setIsGenerating] = useState(false)
+  //const [isGenerating, setIsGenerating] = useState(false)
   const [generatedModel, setGeneratedModel] = useState<string | null>(null)
   const [modelBlob, setModelBlob] = useState<Blob | null>(null)
   const [activeInput, setActiveInput] = useState<'text' | 'image'>('text')
 
   const handleResult = (data: { glb: string }) => {
-    setIsGenerating(false);
+    //setIsGenerating(false);
     try {
       // If the glb is already a blob URL (from ImagePrompt)
       if (data.glb.startsWith('blob:')) {
