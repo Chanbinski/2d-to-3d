@@ -27,7 +27,7 @@ const TextPrompt: React.FC<TextPromptProps> = ({ onResult }) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          // model_name: modelName,
+          model_name: modelName,
           text: prompt
         }),
       });

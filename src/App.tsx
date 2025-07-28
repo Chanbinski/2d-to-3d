@@ -5,7 +5,7 @@ import ImagePrompt from './components/ImagePrompt'
 import { ModelViewer } from './components/ModelViewer'
 
 function App() {
-  const [isGenerating, setIsGenerating] = useState(false)
+  const [_, setIsGenerating] = useState(false)
   const [generatedModel, setGeneratedModel] = useState<string | null>(null)
   const [modelBlobs, setModelBlobs] = useState<{ trellis?: Blob; hunyuan?: Blob }>({})
   const [activeInput, setActiveInput] = useState<'text' | 'image'>('text')
