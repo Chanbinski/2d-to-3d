@@ -5,33 +5,36 @@ import ImagePrompt from './components/ImagePrompt'
 import { ModelViewer } from './components/ModelViewer'
 
 function App() {
-  //const [isGenerating, setIsGenerating] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
   const [generatedModel, setGeneratedModel] = useState<string | null>(null)
-  const [modelBlob, setModelBlob] = useState<Blob | null>(null)
+  const [modelBlobs, setModelBlobs] = useState<{ trellis?: Blob; hunyuan?: Blob }>({})
   const [activeInput, setActiveInput] = useState<'text' | 'image'>('text')
 
-  const handleResult = (data: { glb: string }) => {
-    //setIsGenerating(false);
+  const handleResult = (results: { trellis?: string; hunyuan?: string }) => {
+    setIsGenerating(false);
     try {
-      // If the glb is already a blob URL (from ImagePrompt)
-      if (data.glb.startsWith('blob:')) {
-        fetch(data.glb)
+      const blobs: { trellis?: Blob; hunyuan?: Blob } = {};
+      
+      // Handle TRELLIS result
+      if (results.trellis) {
+        fetch(results.trellis)
           .then(response => response.blob())
           .then(blob => {
-            setModelBlob(blob);
+            blobs.trellis = blob;
+            setModelBlobs(prev => ({ ...prev, trellis: blob }));
             setGeneratedModel('model.glb');
           });
-      } else {
-        // Handle base64 data (from TextPrompt)
-        const base64String = data.glb.split(';base64,').pop() || data.glb;
-        const binaryString = window.atob(base64String);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        const blob = new Blob([bytes], { type: 'model/gltf-binary' });
-        setModelBlob(blob);
-        setGeneratedModel('model.glb');
+      }
+      
+      // Handle Hunyuan result
+      if (results.hunyuan) {
+        fetch(results.hunyuan)
+          .then(response => response.blob())
+          .then(blob => {
+            blobs.hunyuan = blob;
+            setModelBlobs(prev => ({ ...prev, hunyuan: blob }));
+            setGeneratedModel('model.glb');
+          });
       }
     } catch (error) {
       console.error('Error processing GLB data:', error);
@@ -39,18 +42,25 @@ function App() {
     console.log('API Response received');
   };
 
-  const handleDownload = () => {
-    if (modelBlob && generatedModel) {
-      const url = URL.createObjectURL(modelBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'generated-model.glb';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    }
+  const handleDownload = (modelType?: 'trellis' | 'hunyuan') => {
+    const blobs = modelType ? { [modelType]: modelBlobs[modelType as keyof typeof modelBlobs] } : modelBlobs;
+    
+    Object.entries(blobs).forEach(([type, blob]) => {
+      if (blob && generatedModel) {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `generated-model-${type}.glb`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+    });
   }
+
+  const hasAnyModel = Object.keys(modelBlobs).some(key => modelBlobs[key as keyof typeof modelBlobs]);
+  const hasMultipleModels = Object.keys(modelBlobs).filter(key => modelBlobs[key as keyof typeof modelBlobs]).length > 1;
 
   return (
     <div className="min-h-screen p-8">
@@ -71,7 +81,7 @@ function App() {
               <h2 className="text-2xl font-semibold mb-8 text-gray-800 text-left">Input</h2>
               
               {/* Input Method Selector */}
-              <div className="flex gap-4 mb-6">
+              <div className="flex gap-4 mb-2">
                 <button
                   onClick={() => setActiveInput('text')}
                   className={`px-4 py-2 rounded-lg font-medium ${
@@ -118,20 +128,67 @@ function App() {
               <div className={`rounded-xl p-6 ${!generatedModel ? 'upload-area' : ''}`}>
                 {generatedModel ? (
                   <div className="space-y-6">
-                    {modelBlob && (
-                      <div className="bg-gray-50 rounded-lg overflow-hidden">
-                        <ModelViewer modelUrl={URL.createObjectURL(modelBlob)} />
+                    {hasMultipleModels ? (
+                      <div className="space-y-4">
+                        {modelBlobs.trellis && (
+                          <div className="space-y-2">
+                            <h3 className="text-sm font-medium text-gray-700">TRELLIS Model</h3>
+                            <div className="bg-gray-50 rounded-lg overflow-hidden">
+                              <ModelViewer modelUrl={URL.createObjectURL(modelBlobs.trellis)} />
+                            </div>
+                            <div className="flex justify-end">
+                              <button
+                                onClick={() => handleDownload('trellis')}
+                                className="btn-primary px-4 py-2 text-sm text-white rounded-lg font-medium"
+                              >
+                                Download TRELLIS
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        {modelBlobs.hunyuan && (
+                          <div className="space-y-2">
+                            <h3 className="text-sm font-medium text-gray-700">Hunyuan Model</h3>
+                            <div className="bg-gray-50 rounded-lg overflow-hidden">
+                              <ModelViewer modelUrl={URL.createObjectURL(modelBlobs.hunyuan)} />
+                            </div>
+                            <div className="flex justify-end">
+                              <button
+                                onClick={() => handleDownload('hunyuan')}
+                                className="btn-primary px-4 py-2 text-sm text-white rounded-lg font-medium"
+                              >
+                                Download Hunyuan
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex justify-end pt-2">
+                          <button
+                            onClick={() => handleDownload()}
+                            className="btn-primary px-6 py-3 text-white rounded-xl font-medium"
+                          >
+                            Download All Models
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {hasAnyModel && (
+                          <div className="bg-gray-50 rounded-lg overflow-hidden">
+                            <ModelViewer modelUrl={URL.createObjectURL(modelBlobs.trellis || modelBlobs.hunyuan!)} />
+                          </div>
+                        )}
+                        <div className="flex justify-end">
+                          <button
+                            onClick={() => handleDownload()}
+                            disabled={!hasAnyModel}
+                            className="btn-primary px-6 py-3 text-white rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                          >
+                            Download Model
+                          </button>
+                        </div>
                       </div>
                     )}
-                    <div className="flex justify-end">
-                      <button
-                        onClick={handleDownload}
-                        disabled={!modelBlob}
-                        className="btn-primary px-6 py-3 text-white rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                      >
-                        Download Model
-                      </button>
-                    </div>
                   </div>
                 ) : (
                   <div className="py-12 text-center">
