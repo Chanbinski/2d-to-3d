@@ -82,7 +82,7 @@ const ImagePrompt: React.FC<ImagePromptProps> = ({ onResult }) => {
 
       // Prepare payload with Hunyuan parameters if applicable
       const payload: any = {
-        model_name: modelName,
+        // model_name: modelName,
         images: base64Images
       };
 
@@ -98,7 +98,10 @@ const ImagePrompt: React.FC<ImagePromptProps> = ({ onResult }) => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          model_name: modelName,
+          images: base64Images
+        }),
       });
 
       if (!response.ok) {
