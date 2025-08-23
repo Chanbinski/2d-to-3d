@@ -1,7 +1,8 @@
 {
-  "rewrites": [
-    { "source": "/api/generate_from_text/",  "destination": "https://big-coins-mate-rugs.trycloudflare.com/generate_from_text/" },
-    { "source": "/api/generate_from_image/", "destination": "https://big-coins-mate-rugs.trycloudflare.com/generate_from_image/" },
-    { "source": "/api/health/",              "destination": "https://big-coins-mate-rugs.trycloudflare.com/health/" }
-  ]
+  "functions": {
+    "api/*.ts": {
+      "maxDuration": 60,
+      "memory": 1536
+    }
+  }
 }
