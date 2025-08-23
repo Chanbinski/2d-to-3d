@@ -60,7 +60,7 @@ function App() {
   }
 
   const hasAnyModel = Object.keys(modelBlobs).some(key => modelBlobs[key as keyof typeof modelBlobs]);
-  const hasMultipleModels = Object.keys(modelBlobs).filter(key => modelBlobs[key as keyof typeof modelBlobs]).length > 1;
+  //const hasMultipleModels = Object.keys(modelBlobs).filter(key => modelBlobs[key as keyof typeof modelBlobs]).length > 1;
 
   return (
     <div className="min-h-screen p-8">
