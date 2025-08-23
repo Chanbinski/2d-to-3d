@@ -1,4 +1,4 @@
-export default async function handler(req: any, res: any) {
+module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -10,10 +10,10 @@ export default async function handler(req: any, res: any) {
     return res.status(405).send('Method Not Allowed');
   }
 
-  const base = (globalThis as any).process?.env?.UPSTREAM_API_BASE;
+  const base = process.env.UPSTREAM_API_BASE;
   if (!base) return res.status(500).send('Missing UPSTREAM_API_BASE');
 
-  const upstreamUrl = `${base.replace(/\/$/, '')}/generate_from_image/`;
+  const upstreamUrl = `${base.replace(/\/$/, '')}/generate_from_text/`;
 
   try {
     const upstreamRes = await fetch(upstreamUrl, {
@@ -29,12 +29,10 @@ export default async function handler(req: any, res: any) {
     res.setHeader('Content-Type', contentType);
     if (disp) res.setHeader('Content-Disposition', disp);
 
-    const buf = (globalThis as any).Buffer.from(await upstreamRes.arrayBuffer());
+    const buf = Buffer.from(await upstreamRes.arrayBuffer());
     return res.send(buf);
-  } catch (err: any) {
-    console.error('Proxy error (image):', err?.message || err);
+  } catch (err) {
+    console.error('Proxy error (text):', err?.message || err);
     return res.status(502).send('Upstream unavailable');
   }
-}
-
-
+};
