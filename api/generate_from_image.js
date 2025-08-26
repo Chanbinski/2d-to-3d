@@ -1,4 +1,4 @@
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -35,4 +35,4 @@ module.exports = async (req, res) => {
     console.error('Proxy error (image):', err?.message || err);
     return res.status(502).send('Upstream unavailable');
   }
-};
+}
