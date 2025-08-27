@@ -12,12 +12,19 @@ function App() {
   const [loadingStates, setLoadingStates] = useState<{ trellis: boolean; hunyuan: boolean }>({ trellis: false, hunyuan: false })
 
   const handleLoadingStart = (models: ('trellis' | 'hunyuan')[]) => {
-    setIsGenerating(true);
-    const newLoadingStates = { ...loadingStates };
-    models.forEach(model => {
-      newLoadingStates[model] = true;
-    });
-    setLoadingStates(newLoadingStates);
+    if (models.length === 0) {
+      // Reset all loading states (used for error handling)
+      setLoadingStates({ trellis: false, hunyuan: false });
+      setIsGenerating(false);
+    } else {
+      // Start loading for specified models
+      setIsGenerating(true);
+      const newLoadingStates = { ...loadingStates };
+      models.forEach(model => {
+        newLoadingStates[model] = true;
+      });
+      setLoadingStates(newLoadingStates);
+    }
   };
 
   const handleResult = (results: { trellis?: string; hunyuan?: string }) => {

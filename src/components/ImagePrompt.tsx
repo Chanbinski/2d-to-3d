@@ -179,6 +179,14 @@ const ImagePrompt: React.FC<ImagePromptProps> = ({ onResult, onLoadingStart }) =
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
+      // Reset loading states on error
+      if (onLoadingStart) {
+        if (selectedModel === 'both') {
+          onLoadingStart([]); // This will reset both loading states
+        } else {
+          onLoadingStart([]); // Reset single loading state
+        }
+      }
     } finally {
       setLoading(false);
     }
