@@ -2,11 +2,12 @@ import { useState } from 'react';
 
 interface ImagePromptProps {
   onResult?: (results: { trellis?: string; hunyuan?: string }) => void;
+  onLoadingStart?: (models: ('trellis' | 'hunyuan')[]) => void;
 }
 
 type ModelOption = 'trellis' | 'hunyuan' | 'both';
 
-const ImagePrompt: React.FC<ImagePromptProps> = ({ onResult }) => {
+const ImagePrompt: React.FC<ImagePromptProps> = ({ onResult, onLoadingStart }) => {
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -71,49 +72,103 @@ const ImagePrompt: React.FC<ImagePromptProps> = ({ onResult }) => {
     setLoading(true);
     setError(null);
 
+    // Notify parent about loading start
+    if (onLoadingStart) {
+      if (selectedModel === 'both') {
+        onLoadingStart(['trellis', 'hunyuan']);
+      } else {
+        onLoadingStart([selectedModel]);
+      }
+    }
+
     try {
       // Convert all images to base64
       const base64Images = await Promise.all(
         selectedImages.map(image => convertToBase64(image))
       );
 
-      // Map selectedModel to API expected format
-      const modelName = selectedModel === 'both' ? 'all' : selectedModel;
-
-      // Prepare payload with Hunyuan parameters if applicable
-      const payload: any = {
-        // model_name: modelName,
-        images: base64Images
-      };
-
-      // Add Hunyuan parameters if Hunyuan is selected
-      if (selectedModel === 'hunyuan' || selectedModel === 'both') {
-        payload.num_inference_steps = numInferenceSteps;
-        payload.octree_resolution = octreeResolution;
-        payload.guidance_scale = guidanceScale;
-      }
-
-      const response = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate_from_image/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model_name: modelName,
+      if (selectedModel === 'both') {
+        // Make two separate API calls for both models
+        const trellisPayload = {
+          model_name: 'trellis',
           images: base64Images
-        }),
-      });
+        };
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+        const hunyuanPayload = {
+          model_name: 'hunyuan',
+          images: base64Images,
+          num_inference_steps: numInferenceSteps,
+          octree_resolution: octreeResolution,
+          guidance_scale: guidanceScale
+        };
 
-      // Handle binary GLB response
-      const blob = await response.blob();
-      const glbUrl = URL.createObjectURL(blob);
-      
-      if (onResult) {
-        onResult({ trellis: glbUrl });
+        const [trellisResponse, hunyuanResponse] = await Promise.all([
+          fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate_from_image/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(trellisPayload),
+          }),
+          fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate_from_image/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(hunyuanPayload),
+          })
+        ]);
+
+        if (!trellisResponse.ok) {
+          throw new Error(`TRELLIS error! status: ${trellisResponse.status}`);
+        }
+        if (!hunyuanResponse.ok) {
+          throw new Error(`Hunyuan error! status: ${hunyuanResponse.status}`);
+        }
+
+        const [trellisBlob, hunyuanBlob] = await Promise.all([
+          trellisResponse.blob(),
+          hunyuanResponse.blob()
+        ]);
+
+        const trellisUrl = URL.createObjectURL(trellisBlob);
+        const hunyuanUrl = URL.createObjectURL(hunyuanBlob);
+
+        if (onResult) {
+          onResult({ trellis: trellisUrl, hunyuan: hunyuanUrl });
+        }
+      } else {
+        // Single model request
+        const payload: any = {
+          model_name: selectedModel,
+          images: base64Images
+        };
+
+        // Add Hunyuan parameters if Hunyuan is selected
+        if (selectedModel === 'hunyuan') {
+          payload.num_inference_steps = numInferenceSteps;
+          payload.octree_resolution = octreeResolution;
+          payload.guidance_scale = guidanceScale;
+        }
+
+        const response = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate_from_image/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        const glbUrl = URL.createObjectURL(blob);
+        
+        if (onResult) {
+          if (selectedModel === 'trellis') {
+            onResult({ trellis: glbUrl });
+          } else if (selectedModel === 'hunyuan') {
+            onResult({ hunyuan: glbUrl });
+          }
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');

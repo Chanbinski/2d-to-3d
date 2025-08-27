@@ -9,6 +9,16 @@ function App() {
   const [generatedModel, setGeneratedModel] = useState<string | null>(null)
   const [modelBlobs, setModelBlobs] = useState<{ trellis?: Blob; hunyuan?: Blob }>({})
   const [activeInput, setActiveInput] = useState<'text' | 'image'>('text')
+  const [loadingStates, setLoadingStates] = useState<{ trellis: boolean; hunyuan: boolean }>({ trellis: false, hunyuan: false })
+
+  const handleLoadingStart = (models: ('trellis' | 'hunyuan')[]) => {
+    setIsGenerating(true);
+    const newLoadingStates = { ...loadingStates };
+    models.forEach(model => {
+      newLoadingStates[model] = true;
+    });
+    setLoadingStates(newLoadingStates);
+  };
 
   const handleResult = (results: { trellis?: string; hunyuan?: string }) => {
     setIsGenerating(false);
@@ -22,6 +32,7 @@ function App() {
           .then(blob => {
             blobs.trellis = blob;
             setModelBlobs(prev => ({ ...prev, trellis: blob }));
+            setLoadingStates(prev => ({ ...prev, trellis: false }));
             setGeneratedModel('model.glb');
           });
       }
@@ -33,11 +44,14 @@ function App() {
           .then(blob => {
             blobs.hunyuan = blob;
             setModelBlobs(prev => ({ ...prev, hunyuan: blob }));
+            setLoadingStates(prev => ({ ...prev, hunyuan: false }));
             setGeneratedModel('model.glb');
           });
       }
     } catch (error) {
       console.error('Error processing GLB data:', error);
+      // Reset loading states on error
+      setLoadingStates({ trellis: false, hunyuan: false });
     }
     console.log('API Response received');
   };
@@ -108,13 +122,13 @@ function App() {
               <div className="input-gradient rounded-xl p-6">
                 {activeInput === 'text' && (
                   <div>
-                    <TextPrompt onResult={handleResult} />
+                    <TextPrompt onResult={handleResult} onLoadingStart={handleLoadingStart} />
                   </div>
                 )}
 
                 {activeInput === 'image' && (
                   <div>
-                    <ImagePrompt onResult={handleResult} />
+                    <ImagePrompt onResult={handleResult} onLoadingStart={handleLoadingStart} />
                   </div>
                 )}
               </div>
@@ -130,7 +144,14 @@ function App() {
                   {/* TRELLIS Section */}
                   <div className="space-y-3">
                     <h3 className="text-sm font-medium text-gray-700">TRELLIS</h3>
-                    {modelBlobs.trellis ? (
+                    {loadingStates.trellis ? (
+                      <div className="border border-dashed border-blue-300 rounded-lg p-6 text-center text-blue-600 text-sm">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                          <span>Generating TRELLIS model...</span>
+                        </div>
+                      </div>
+                    ) : modelBlobs.trellis ? (
                       <>
                         <div className="bg-gray-50 rounded-lg overflow-hidden">
                           <ModelViewer modelUrl={URL.createObjectURL(modelBlobs.trellis)} />
@@ -154,7 +175,14 @@ function App() {
                   {/* Hunyuan Section */}
                   <div className="space-y-3">
                     <h3 className="text-sm font-medium text-gray-700">Hunyuan</h3>
-                    {modelBlobs.hunyuan ? (
+                    {loadingStates.hunyuan ? (
+                      <div className="border border-dashed border-purple-300 rounded-lg p-6 text-center text-purple-600 text-sm">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                          <span>Generating Hunyuan model...</span>
+                        </div>
+                      </div>
+                    ) : modelBlobs.hunyuan ? (
                       <>
                         <div className="bg-gray-50 rounded-lg overflow-hidden">
                           <ModelViewer modelUrl={URL.createObjectURL(modelBlobs.hunyuan)} />

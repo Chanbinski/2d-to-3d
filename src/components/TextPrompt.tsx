@@ -2,11 +2,12 @@ import { useState } from 'react';
 
 interface TextPromptProps {
   onResult?: (results: { trellis?: string; hunyuan?: string }) => void;
+  onLoadingStart?: (models: ('trellis' | 'hunyuan')[]) => void;
 }
 
 type ModelOption = 'trellis' | 'hunyuan' | 'both';
 
-const TextPrompt: React.FC<TextPromptProps> = ({ onResult }) => {
+const TextPrompt: React.FC<TextPromptProps> = ({ onResult, onLoadingStart }) => {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,31 +18,76 @@ const TextPrompt: React.FC<TextPromptProps> = ({ onResult }) => {
     setLoading(true);
     setError(null);
 
-    try {
-      // Map selectedModel to API expected format
-      const modelName = selectedModel === 'both' ? 'all' : selectedModel;
-
-      const response = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model_name: modelName,
-          text: prompt
-        }),
-      });
-    
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+    // Notify parent about loading start
+    if (onLoadingStart) {
+      if (selectedModel === 'both') {
+        onLoadingStart(['trellis', 'hunyuan']);
+      } else {
+        onLoadingStart([selectedModel]);
       }
-    
-      // Handle binary GLB response
-      const blob = await response.blob();
-      const glbUrl = URL.createObjectURL(blob);
+    }
+
+    try {
+      if (selectedModel === 'both') {
+        // Make two separate API calls for both models
+        const [trellisResponse, hunyuanResponse] = await Promise.all([
+          fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model_name: 'trellis', text: prompt }),
+          }),
+          fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model_name: 'hunyuan', text: prompt }),
+          })
+        ]);
+
+        if (!trellisResponse.ok) {
+          throw new Error(`TRELLIS error! status: ${trellisResponse.status}`);
+        }
+        if (!hunyuanResponse.ok) {
+          throw new Error(`Hunyuan error! status: ${hunyuanResponse.status}`);
+        }
+
+        const [trellisBlob, hunyuanBlob] = await Promise.all([
+          trellisResponse.blob(),
+          hunyuanResponse.blob()
+        ]);
+
+        const trellisUrl = URL.createObjectURL(trellisBlob);
+        const hunyuanUrl = URL.createObjectURL(hunyuanBlob);
+
+        if (onResult) {
+          onResult({ trellis: trellisUrl, hunyuan: hunyuanUrl });
+        }
+      } else {
+        // Single model request
+        const response = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model_name: selectedModel,
+            text: prompt
+          }),
+        });
       
-      if (onResult) {
-        onResult({ trellis: glbUrl });
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+      
+        const blob = await response.blob();
+        const glbUrl = URL.createObjectURL(blob);
+        
+        if (onResult) {
+          if (selectedModel === 'trellis') {
+            onResult({ trellis: glbUrl });
+          } else if (selectedModel === 'hunyuan') {
+            onResult({ hunyuan: glbUrl });
+          }
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
