@@ -234,7 +234,7 @@ const ImagePrompt: React.FC<ImagePromptProps> = ({ onResult, onLoadingStart, isG
       )}
 
       {/* Hunyuan Parameters - Only show when Hunyuan is selected */}
-      {(selectedModel === 'hunyuan' || selectedModel === 'both') && (
+      {selectedModel === 'hunyuan' && (
         <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
           <h3 className="text-sm font-medium text-gray-700">Hunyuan Parameters</h3>
           
