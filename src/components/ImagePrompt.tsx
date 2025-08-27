@@ -3,11 +3,12 @@ import { useState } from 'react';
 interface ImagePromptProps {
   onResult?: (results: { trellis?: string; hunyuan?: string }) => void;
   onLoadingStart?: (models: ('trellis' | 'hunyuan')[]) => void;
+  isGenerating?: boolean;
 }
 
-type ModelOption = 'trellis' | 'hunyuan' | 'both';
+type ModelOption = 'trellis' | 'hunyuan';
 
-const ImagePrompt: React.FC<ImagePromptProps> = ({ onResult, onLoadingStart }) => {
+const ImagePrompt: React.FC<ImagePromptProps> = ({ onResult, onLoadingStart, isGenerating }) => {
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -69,16 +70,15 @@ const ImagePrompt: React.FC<ImagePromptProps> = ({ onResult, onLoadingStart }) =
     e.preventDefault();
     if (selectedImages.length === 0) return;
 
+    // Prevent submission if already generating
+    if (isGenerating) return;
+
     setLoading(true);
     setError(null);
 
     // Notify parent about loading start
     if (onLoadingStart) {
-      if (selectedModel === 'both') {
-        onLoadingStart(['trellis', 'hunyuan']);
-      } else {
-        onLoadingStart([selectedModel]);
-      }
+      onLoadingStart([selectedModel]);
     }
 
     try {
@@ -87,105 +87,46 @@ const ImagePrompt: React.FC<ImagePromptProps> = ({ onResult, onLoadingStart }) =
         selectedImages.map(image => convertToBase64(image))
       );
 
-      if (selectedModel === 'both') {
-        // Make two sequential API calls for both models
-        
-        // First: Generate TRELLIS model
-        const trellisPayload = {
-          model_name: 'trellis',
-          images: base64Images
-        };
+      // Single model request
+      const payload: any = {
+        model_name: selectedModel,
+        images: base64Images
+      };
 
-        const trellisResponse = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate_from_image/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(trellisPayload),
-        });
+      // Add Hunyuan parameters if Hunyuan is selected
+      if (selectedModel === 'hunyuan') {
+        payload.num_inference_steps = numInferenceSteps;
+        payload.octree_resolution = octreeResolution;
+        payload.guidance_scale = guidanceScale;
+      }
 
-        if (!trellisResponse.ok) {
-          throw new Error(`TRELLIS error! status: ${trellisResponse.status}`);
-        }
+      const response = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate_from_image/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
 
-        const trellisBlob = await trellisResponse.blob();
-        const trellisUrl = URL.createObjectURL(trellisBlob);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-        // Show TRELLIS result immediately
-        if (onResult) {
-          onResult({ trellis: trellisUrl });
-        }
-
-        // Second: Generate Hunyuan model
-        const hunyuanPayload = {
-          model_name: 'hunyuan',
-          images: base64Images,
-          num_inference_steps: numInferenceSteps,
-          octree_resolution: octreeResolution,
-          guidance_scale: guidanceScale
-        };
-
-        const hunyuanResponse = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate_from_image/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(hunyuanPayload),
-        });
-
-        if (!hunyuanResponse.ok) {
-          throw new Error(`Hunyuan error! status: ${hunyuanResponse.status}`);
-        }
-
-        const hunyuanBlob = await hunyuanResponse.blob();
-        const hunyuanUrl = URL.createObjectURL(hunyuanBlob);
-
-        // Show Hunyuan result
-        if (onResult) {
-          onResult({ hunyuan: hunyuanUrl });
-        }
-      } else {
-        // Single model request
-        const payload: any = {
-          model_name: selectedModel,
-          images: base64Images
-        };
-
-        // Add Hunyuan parameters if Hunyuan is selected
-        if (selectedModel === 'hunyuan') {
-          payload.num_inference_steps = numInferenceSteps;
-          payload.octree_resolution = octreeResolution;
-          payload.guidance_scale = guidanceScale;
-        }
-
-        const response = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate_from_image/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const blob = await response.blob();
-        const glbUrl = URL.createObjectURL(blob);
-        
-        if (onResult) {
-          if (selectedModel === 'trellis') {
-            onResult({ trellis: glbUrl });
-          } else if (selectedModel === 'hunyuan') {
-            onResult({ hunyuan: glbUrl });
-          }
+      const blob = await response.blob();
+      const glbUrl = URL.createObjectURL(blob);
+      
+      if (onResult) {
+        if (selectedModel === 'trellis') {
+          onResult({ trellis: glbUrl });
+        } else if (selectedModel === 'hunyuan') {
+          onResult({ hunyuan: glbUrl });
         }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
       // Reset loading states on error
       if (onLoadingStart) {
-        if (selectedModel === 'both') {
-          onLoadingStart([]); // This will reset both loading states
-        } else {
-          onLoadingStart([]); // Reset single loading state
-        }
+        onLoadingStart([]); // Reset loading state
       }
     } finally {
       setLoading(false);
@@ -224,17 +165,7 @@ const ImagePrompt: React.FC<ImagePromptProps> = ({ onResult, onLoadingStart }) =
           />
           Hunyuan
         </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="radio"
-            name="model"
-            value="both"
-            checked={selectedModel === 'both'}
-            onChange={(e) => setSelectedModel(e.target.value as ModelOption)}
-            className="text-indigo-600"
-          />
-          Both
-        </label>
+
       </div>
 
       <div className="flex flex-col items-center justify-center w-full">
@@ -370,10 +301,10 @@ const ImagePrompt: React.FC<ImagePromptProps> = ({ onResult, onLoadingStart }) =
       <div className="flex justify-end">
         <button
           onClick={handleSubmit}
-          disabled={selectedImages.length === 0 || loading}
+          disabled={selectedImages.length === 0 || loading || isGenerating}
           className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? 'Generating...' : 'Generate'}
+          {isGenerating ? 'Generating...' : 'Generate'}
         </button>
       </div>
       {error && <div className="text-red-500 text-sm">{error}</div>}

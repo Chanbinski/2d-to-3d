@@ -3,11 +3,12 @@ import { useState } from 'react';
 interface TextPromptProps {
   onResult?: (results: { trellis?: string; hunyuan?: string }) => void;
   onLoadingStart?: (models: ('trellis' | 'hunyuan')[]) => void;
+  isGenerating?: boolean;
 }
 
-type ModelOption = 'trellis' | 'hunyuan' | 'both';
+type ModelOption = 'trellis' | 'hunyuan';
 
-const TextPrompt: React.FC<TextPromptProps> = ({ onResult, onLoadingStart }) => {
+const TextPrompt: React.FC<TextPromptProps> = ({ onResult, onLoadingStart, isGenerating }) => {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -15,96 +16,50 @@ const TextPrompt: React.FC<TextPromptProps> = ({ onResult, onLoadingStart }) => 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent submission if already generating
+    if (isGenerating) return;
+    
     setLoading(true);
     setError(null);
 
     // Notify parent about loading start
     if (onLoadingStart) {
-      if (selectedModel === 'both') {
-        onLoadingStart(['trellis', 'hunyuan']);
-      } else {
-        onLoadingStart([selectedModel]);
-      }
+      onLoadingStart([selectedModel]);
     }
 
     try {
-      if (selectedModel === 'both') {
-        // Make two sequential API calls for both models
-        
-        // First: Generate TRELLIS model
-        const trellisResponse = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model_name: 'trellis', text: prompt }),
-        });
-
-        if (!trellisResponse.ok) {
-          throw new Error(`TRELLIS error! status: ${trellisResponse.status}`);
-        }
-
-        const trellisBlob = await trellisResponse.blob();
-        const trellisUrl = URL.createObjectURL(trellisBlob);
-
-        // Show TRELLIS result immediately
-        if (onResult) {
-          onResult({ trellis: trellisUrl });
-        }
-
-        // Second: Generate Hunyuan model
-        const hunyuanResponse = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model_name: 'hunyuan', text: prompt }),
-        });
-
-        if (!hunyuanResponse.ok) {
-          throw new Error(`Hunyuan error! status: ${hunyuanResponse.status}`);
-        }
-
-        const hunyuanBlob = await hunyuanResponse.blob();
-        const hunyuanUrl = URL.createObjectURL(hunyuanBlob);
-
-        // Show Hunyuan result
-        if (onResult) {
-          onResult({ hunyuan: hunyuanUrl });
-        }
-      } else {
-        // Single model request
-        const response = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model_name: selectedModel,
-            text: prompt
-          }),
-        });
+      // Single model request
+      const response = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model_name: selectedModel,
+          text: prompt
+        }),
+      });
+    
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+    
+      const blob = await response.blob();
+      const glbUrl = URL.createObjectURL(blob);
       
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-      
-        const blob = await response.blob();
-        const glbUrl = URL.createObjectURL(blob);
-        
-        if (onResult) {
-          if (selectedModel === 'trellis') {
-            onResult({ trellis: glbUrl });
-          } else if (selectedModel === 'hunyuan') {
-            onResult({ hunyuan: glbUrl });
-          }
+      if (onResult) {
+        if (selectedModel === 'trellis') {
+          onResult({ trellis: glbUrl });
+        } else if (selectedModel === 'hunyuan') {
+          onResult({ hunyuan: glbUrl });
         }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
       // Reset loading states on error
       if (onLoadingStart) {
-        if (selectedModel === 'both') {
-          onLoadingStart([]); // This will reset both loading states
-        } else {
-          onLoadingStart([]); // Reset single loading state
-        }
+        onLoadingStart([]); // Reset loading state
       }
     } finally {
       setLoading(false);
@@ -136,17 +91,7 @@ const TextPrompt: React.FC<TextPromptProps> = ({ onResult, onLoadingStart }) => 
           />
           Hunyuan
         </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="radio"
-            name="model"
-            value="both"
-            checked={selectedModel === 'both'}
-            onChange={(e) => setSelectedModel(e.target.value as ModelOption)}
-            className="text-indigo-600"
-          />
-          Both
-        </label>
+
       </div>
 
       <textarea
@@ -160,10 +105,10 @@ const TextPrompt: React.FC<TextPromptProps> = ({ onResult, onLoadingStart }) => 
       <div className="flex justify-end">
         <button
           onClick={handleSubmit}
-          disabled={!prompt.trim() || loading}
+          disabled={!prompt.trim() || loading || isGenerating}
           className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? 'Generating...' : 'Generate'}
+          {isGenerating ? 'Generating...' : 'Generate'}
         </button>
       </div>
       {error && <div className="text-red-500 text-sm">{error}</div>}

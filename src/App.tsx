@@ -5,7 +5,7 @@ import ImagePrompt from './components/ImagePrompt'
 import { ModelViewer } from './components/ModelViewer'
 
 function App() {
-  const [_, setIsGenerating] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
   const [generatedModel, setGeneratedModel] = useState<string | null>(null)
   const [modelBlobs, setModelBlobs] = useState<{ trellis?: Blob; hunyuan?: Blob }>({})
   const [activeInput, setActiveInput] = useState<'text' | 'image'>('text')
@@ -129,13 +129,13 @@ function App() {
               <div className="input-gradient rounded-xl p-6">
                 {activeInput === 'text' && (
                   <div>
-                    <TextPrompt onResult={handleResult} onLoadingStart={handleLoadingStart} />
+                    <TextPrompt onResult={handleResult} onLoadingStart={handleLoadingStart} isGenerating={isGenerating} />
                   </div>
                 )}
 
                 {activeInput === 'image' && (
                   <div>
-                    <ImagePrompt onResult={handleResult} onLoadingStart={handleLoadingStart} />
+                    <ImagePrompt onResult={handleResult} onLoadingStart={handleLoadingStart} isGenerating={isGenerating} />
                   </div>
                 )}
               </div>
