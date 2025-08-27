@@ -29,37 +29,44 @@ const TextPrompt: React.FC<TextPromptProps> = ({ onResult, onLoadingStart }) => 
 
     try {
       if (selectedModel === 'both') {
-        // Make two separate API calls for both models
-        const [trellisResponse, hunyuanResponse] = await Promise.all([
-          fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model_name: 'trellis', text: prompt }),
-          }),
-          fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model_name: 'hunyuan', text: prompt }),
-          })
-        ]);
+        // Make two sequential API calls for both models
+        
+        // First: Generate TRELLIS model
+        const trellisResponse = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model_name: 'trellis', text: prompt }),
+        });
 
         if (!trellisResponse.ok) {
           throw new Error(`TRELLIS error! status: ${trellisResponse.status}`);
         }
+
+        const trellisBlob = await trellisResponse.blob();
+        const trellisUrl = URL.createObjectURL(trellisBlob);
+
+        // Show TRELLIS result immediately
+        if (onResult) {
+          onResult({ trellis: trellisUrl });
+        }
+
+        // Second: Generate Hunyuan model
+        const hunyuanResponse = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model_name: 'hunyuan', text: prompt }),
+        });
+
         if (!hunyuanResponse.ok) {
           throw new Error(`Hunyuan error! status: ${hunyuanResponse.status}`);
         }
 
-        const [trellisBlob, hunyuanBlob] = await Promise.all([
-          trellisResponse.blob(),
-          hunyuanResponse.blob()
-        ]);
-
-        const trellisUrl = URL.createObjectURL(trellisBlob);
+        const hunyuanBlob = await hunyuanResponse.blob();
         const hunyuanUrl = URL.createObjectURL(hunyuanBlob);
 
+        // Show Hunyuan result
         if (onResult) {
-          onResult({ trellis: trellisUrl, hunyuan: hunyuanUrl });
+          onResult({ hunyuan: hunyuanUrl });
         }
       } else {
         // Single model request

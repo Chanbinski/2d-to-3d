@@ -88,12 +88,33 @@ const ImagePrompt: React.FC<ImagePromptProps> = ({ onResult, onLoadingStart }) =
       );
 
       if (selectedModel === 'both') {
-        // Make two separate API calls for both models
+        // Make two sequential API calls for both models
+        
+        // First: Generate TRELLIS model
         const trellisPayload = {
           model_name: 'trellis',
           images: base64Images
         };
 
+        const trellisResponse = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate_from_image/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(trellisPayload),
+        });
+
+        if (!trellisResponse.ok) {
+          throw new Error(`TRELLIS error! status: ${trellisResponse.status}`);
+        }
+
+        const trellisBlob = await trellisResponse.blob();
+        const trellisUrl = URL.createObjectURL(trellisBlob);
+
+        // Show TRELLIS result immediately
+        if (onResult) {
+          onResult({ trellis: trellisUrl });
+        }
+
+        // Second: Generate Hunyuan model
         const hunyuanPayload = {
           model_name: 'hunyuan',
           images: base64Images,
@@ -102,36 +123,22 @@ const ImagePrompt: React.FC<ImagePromptProps> = ({ onResult, onLoadingStart }) =
           guidance_scale: guidanceScale
         };
 
-        const [trellisResponse, hunyuanResponse] = await Promise.all([
-          fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate_from_image/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(trellisPayload),
-          }),
-          fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate_from_image/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(hunyuanPayload),
-          })
-        ]);
+        const hunyuanResponse = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/generate_from_image/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(hunyuanPayload),
+        });
 
-        if (!trellisResponse.ok) {
-          throw new Error(`TRELLIS error! status: ${trellisResponse.status}`);
-        }
         if (!hunyuanResponse.ok) {
           throw new Error(`Hunyuan error! status: ${hunyuanResponse.status}`);
         }
 
-        const [trellisBlob, hunyuanBlob] = await Promise.all([
-          trellisResponse.blob(),
-          hunyuanResponse.blob()
-        ]);
-
-        const trellisUrl = URL.createObjectURL(trellisBlob);
+        const hunyuanBlob = await hunyuanResponse.blob();
         const hunyuanUrl = URL.createObjectURL(hunyuanBlob);
 
+        // Show Hunyuan result
         if (onResult) {
-          onResult({ trellis: trellisUrl, hunyuan: hunyuanUrl });
+          onResult({ hunyuan: hunyuanUrl });
         }
       } else {
         // Single model request
